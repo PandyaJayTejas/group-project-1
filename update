@@ -1,0 +1,322 @@
+import tkinter as tk
+from tkinter import messagebox
+import json
+import os
+from datetime import datetime
+
+class Event:
+    """
+    Represents a single event with its details and attendee count.
+    Includes methods for registration and for converting the object to a dictionary for JSON serialization.
+    """
+    def __init__(self, title, date, location, capacity):
+        self.title = title
+        self.date = date
+        self.location = location
+        self.capacity = capacity
+        self.registered_attendees = 0
+
+    def register_attendee(self):
+        """Registers a new attendee if the event is not at full capacity.
+        Returns True on success, False otherwise.
+        """
+        if self.registered_attendees < self.capacity:
+            self.registered_attendees += 1
+            return True
+        return False
+
+    def to_dict(self):
+        """Converts the Event object into a dictionary for JSON serialization."""
+        return {
+            "title": self.title,
+            "date": self.date,
+            "location": self.location,
+            "capacity": self.capacity,
+            "registered_attendees": self.registered_attendees
+        }
+
+    @staticmethod
+    def from_dict(data):
+        """Creates an Event object from a dictionary loaded from JSON."""
+        event = Event(data["title"], data["date"], data["location"], data["capacity"])
+        event.registered_attendees = data["registered_attendees"]
+        return event
+
+class EventManagementApp(tk.Tk):
+    """
+    Main application window for the Event Management System.
+    Manages the entire application flow, UI, and data persistence.
+    """
+    def __init__(self):
+        super().__init__()
+        self.title("Event Management System")
+        self.geometry("450x350")
+        self.configure(bg="#ecf0f1")  # Light gray background
+        self.current_window = None
+
+        # The file path for saving event data
+        self.data_file = "events.json"
+        
+        # A list to store Event objects.
+        self.events = self.load_events()
+
+        # Create the main frame for the UI, which will hold all the buttons.
+        self.main_frame = tk.Frame(self, bg="#ecf0f1")
+        self.main_frame.pack(fill="both", expand=True, padx=40, pady=40)
+
+        # Create the main UI buttons for the user to interact with.
+        self.create_main_ui()
+
+        # Create a status bar at the bottom
+        self.status_bar = tk.Label(self, text="Ready", bd=1, relief=tk.SUNKEN, anchor=tk.W, bg="#bdc3c7")
+        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+
+    def set_status(self, message):
+        """Updates the message in the status bar."""
+        self.status_bar.config(text=message)
+        self.after(3000, lambda: self.status_bar.config(text="Ready"))
+
+    def create_main_ui(self):
+        """Creates the main UI elements including the title and buttons."""
+        title_font = ("Helvetica", 20, "bold")
+        subtitle_font = ("Helvetica", 12)
+        button_font = ("Helvetica", 12, "bold")
+        
+        tk.Label(self.main_frame, text="Event Manager", font=title_font, bg="#ecf0f1", fg="#2c3e50").pack(pady=(0, 5))
+        tk.Label(self.main_frame, text="Your solution for managing events", font=subtitle_font, bg="#ecf0f1", fg="#7f8c8d").pack(pady=(0, 20))
+
+        button_style = {"bg": "#3498db", "fg": "white", "bd": 0, "padx": 20, "pady": 12, "relief": "flat", "activebackground": "#2980b9", "activeforeground": "white"}
+        
+        create_button = tk.Button(self.main_frame, text="Create Event", command=self.create_event_ui, font=button_font, **button_style)
+        create_button.pack(pady=10, fill="x")
+
+        view_button = tk.Button(self.main_frame, text="View Events", command=self.view_events_ui, font=button_font, **button_style)
+        view_button.pack(pady=10, fill="x")
+        
+        exit_button = tk.Button(self.main_frame, text="Exit", command=self.destroy, font=button_font, **button_style)
+        exit_button.pack(pady=10, fill="x")
+
+    def fade_in_window(self, window):
+        """Creates a simple fade-in effect for a Toplevel window."""
+        window.attributes("-alpha", 0)
+        alpha = 0
+        def animate():
+            nonlocal alpha
+            if alpha < 1.0:
+                alpha += 0.1
+                window.attributes("-alpha", alpha)
+                window.after(30, animate)
+        animate()
+
+    def load_events(self):
+        """Loads events from the JSON file on startup."""
+        if os.path.exists(self.data_file):
+            with open(self.data_file, "r") as f:
+                try:
+                    data = json.load(f)
+                    return [Event.from_dict(item) for item in data]
+                except (json.JSONDecodeError, KeyError):
+                    # Handle cases where the file is empty or corrupted
+                    return []
+        return []
+
+    def save_events(self):
+        """Saves all events to a JSON file."""
+        with open(self.data_file, "w") as f:
+            json.dump([event.to_dict() for event in self.events], f, indent=4)
+
+    def create_event_ui(self):
+        """Opens a new Toplevel window to get event details and create a new event."""
+        create_event_window = tk.Toplevel(self, bg="#ecf0f1")
+        create_event_window.title("Create Event")
+        create_event_window.geometry("350x300")
+        self.fade_in_window(create_event_window)
+
+        form_frame = tk.Frame(create_event_window, bg="#ecf0f1", padx=20, pady=20)
+        form_frame.pack(fill="both", expand=True)
+
+        input_font = ("Helvetica", 10)
+        label_style = {"bg": "#ecf0f1", "font": input_font, "fg": "#2c3e50"}
+        entry_style = {"bg": "white", "bd": 1, "relief": "solid"}
+
+        tk.Label(form_frame, text="Title:", **label_style).grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        title_entry = tk.Entry(form_frame, font=input_font, **entry_style)
+        title_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+
+        tk.Label(form_frame, text="Date (YYYY-MM-DD):", **label_style).grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        date_entry = tk.Entry(form_frame, font=input_font, **entry_style)
+        date_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        
+        tk.Label(form_frame, text="Location:", **label_style).grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        location_entry = tk.Entry(form_frame, font=input_font, **entry_style)
+        location_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+
+        tk.Label(form_frame, text="Capacity:", **label_style).grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        capacity_entry = tk.Entry(form_frame, font=input_font, **entry_style)
+        capacity_entry.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
+
+        def create():
+            title = title_entry.get()
+            date_str = date_entry.get()
+            location = location_entry.get()
+            capacity_str = capacity_entry.get()
+
+            if not all([title, date_str, location, capacity_str]):
+                messagebox.showerror("Error", "All fields are required.", parent=create_event_window)
+                return
+            try:
+                datetime.strptime(date_str, "%Y-%m-%d")
+                capacity = int(capacity_str)
+                new_event = Event(title, date_str, location, capacity)
+                self.events.append(new_event)
+                self.save_events()
+                self.set_status(f"Event '{title}' created successfully!")
+                create_event_window.destroy()
+            except ValueError as e:
+                messagebox.showerror("Error", f"Invalid input. Please check your date and capacity values.", parent=create_event_window)
+            except Exception as e:
+                messagebox.showerror("Error", f"An unexpected error occurred: {e}", parent=create_event_window)
+
+        create_button_style = {"font": ("Helvetica", 11, "bold"), "bg": "#2ecc71", "fg": "white", "bd": 0, "relief": "flat", "pady": 10, "activebackground": "#27ae60"}
+        create_button = tk.Button(form_frame, text="Create", command=create, **create_button_style)
+        create_button.grid(row=4, column=0, columnspan=2, pady=(20, 5), sticky="ew")
+
+        form_frame.grid_columnconfigure(1, weight=1)
+
+    def view_events_ui(self):
+        """
+        Opens a new Toplevel window to display all created events.
+        Includes 'Register', 'Edit', and 'Delete' buttons for each event.
+        """
+        view_events_window = tk.Toplevel(self, bg="#ecf0f1")
+        view_events_window.title("View Events")
+        view_events_window.geometry("650x450")
+        self.fade_in_window(view_events_window)
+        
+        if not self.events:
+            tk.Label(view_events_window, text="No events available.", bg="#ecf0f1", font=("Helvetica", 12)).pack(padx=20, pady=20)
+        else:
+            events_frame = tk.Frame(view_events_window, bg="#ecf0f1", padx=10, pady=10)
+            events_frame.pack(fill="both", expand=True)
+
+            # Header row
+            header_font = ("Helvetica", 10, "bold")
+            tk.Label(events_frame, text="Title", font=header_font, bg="#ecf0f1").grid(row=0, column=0, sticky="w", padx=5, pady=5)
+            tk.Label(events_frame, text="Date", font=header_font, bg="#ecf0f1").grid(row=0, column=1, sticky="w", padx=5, pady=5)
+            tk.Label(events_frame, text="Location", font=header_font, bg="#ecf0f1").grid(row=0, column=2, sticky="w", padx=5, pady=5)
+            tk.Label(events_frame, text="Attendees", font=header_font, bg="#ecf0f1").grid(row=0, column=3, sticky="w", padx=5, pady=5)
+            tk.Label(events_frame, text="Actions", font=header_font, bg="#ecf0f1").grid(row=0, column=4, columnspan=3, sticky="w", padx=5, pady=5)
+
+            # Loop through the list of events and display them in a grid.
+            for i, event in enumerate(self.events):
+                row = i + 1
+                tk.Label(events_frame, text=event.title, bg="#ecf0f1", font=("Helvetica", 10)).grid(row=row, column=0, padx=5, pady=2, sticky="w")
+                tk.Label(events_frame, text=event.date, bg="#ecf0f1", font=("Helvetica", 10)).grid(row=row, column=1, padx=5, pady=2, sticky="w")
+                tk.Label(events_frame, text=event.location, bg="#ecf0f1", font=("Helvetica", 10)).grid(row=row, column=2, padx=5, pady=2, sticky="w")
+                tk.Label(events_frame, text=f"{event.registered_attendees}/{event.capacity}", bg="#ecf0f1", font=("Helvetica", 10)).grid(row=row, column=3, padx=5, pady=2, sticky="w")
+
+                # Action buttons
+                button_font = ("Helvetica", 9, "bold")
+                
+                register_button = tk.Button(events_frame, text="Register", font=button_font, bg="#3498db", fg="white", bd=0, relief="flat", activebackground="#2980b9", activeforeground="white",
+                                            command=lambda ev=event: self.register_and_refresh(ev, view_events_window))
+                register_button.grid(row=row, column=4, padx=5, pady=2)
+
+                edit_button = tk.Button(events_frame, text="Edit", font=button_font, bg="#f1c40f", fg="white", bd=0, relief="flat", activebackground="#f39c12", activeforeground="white",
+                                        command=lambda ev=event: self.edit_event_ui(ev, view_events_window))
+                edit_button.grid(row=row, column=5, padx=5, pady=2)
+
+                delete_button = tk.Button(events_frame, text="Delete", font=button_font, bg="#e74c3c", fg="white", bd=0, relief="flat", activebackground="#c0392b", activeforeground="white",
+                                          command=lambda ev=event: self.delete_event(ev, view_events_window))
+                delete_button.grid(row=row, column=6, padx=5, pady=2)
+
+    def register_and_refresh(self, event, parent_window):
+        """
+        Calls the register method on an event and then refreshes the events list.
+        Refreshing is done by destroying and recreating the events window.
+        """
+        if event.register_attendee():
+            self.save_events()
+            self.set_status(f"Successfully registered for '{event.title}'!")
+        else:
+            self.set_status(f"Event full! Cannot register for '{event.title}'.")
+        
+        parent_window.destroy()
+        self.view_events_ui()
+
+    def delete_event(self, event_to_delete, parent_window):
+        """Deletes an event and refreshes the view."""
+        if messagebox.askyesno("Delete Event", f"Are you sure you want to delete '{event_to_delete.title}'?", parent=parent_window):
+            self.events.remove(event_to_delete)
+            self.save_events()
+            self.set_status(f"Event '{event_to_delete.title}' deleted.")
+            parent_window.destroy()
+            self.view_events_ui()
+
+    def edit_event_ui(self, event_to_edit, parent_window):
+        """Opens a new window to edit an existing event's details."""
+        edit_event_window = tk.Toplevel(self, bg="#ecf0f1")
+        edit_event_window.title(f"Edit {event_to_edit.title}")
+        edit_event_window.geometry("350x300")
+        self.fade_in_window(edit_event_window)
+
+        form_frame = tk.Frame(edit_event_window, bg="#ecf0f1", padx=20, pady=20)
+        form_frame.pack(fill="both", expand=True)
+
+        input_font = ("Helvetica", 10)
+        label_style = {"bg": "#ecf0f1", "font": input_font, "fg": "#2c3e50"}
+        entry_style = {"bg": "white", "bd": 1, "relief": "solid"}
+
+        tk.Label(form_frame, text="Title:", **label_style).grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        title_entry = tk.Entry(form_frame, font=input_font, **entry_style)
+        title_entry.insert(0, event_to_edit.title)
+        title_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+
+        tk.Label(form_frame, text="Date (YYYY-MM-DD):", **label_style).grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        date_entry = tk.Entry(form_frame, font=input_font, **entry_style)
+        date_entry.insert(0, event_to_edit.date)
+        date_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        
+        tk.Label(form_frame, text="Location:", **label_style).grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        location_entry = tk.Entry(form_frame, font=input_font, **entry_style)
+        location_entry.insert(0, event_to_edit.location)
+        location_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+
+        tk.Label(form_frame, text="Capacity:", **label_style).grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        capacity_entry = tk.Entry(form_frame, font=input_font, **entry_style)
+        capacity_entry.insert(0, event_to_edit.capacity)
+        capacity_entry.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
+
+        def save_changes():
+            """Validates and saves the changes to the event."""
+            title = title_entry.get()
+            date_str = date_entry.get()
+            location = location_entry.get()
+            capacity_str = capacity_entry.get()
+
+            try:
+                datetime.strptime(date_str, "%Y-%m-%d")
+                capacity = int(capacity_str)
+
+                event_to_edit.title = title
+                event_to_edit.date = date_str
+                event_to_edit.location = location
+                event_to_edit.capacity = capacity
+                
+                self.save_events()
+                self.set_status(f"Event '{event_to_edit.title}' updated successfully!")
+                edit_event_window.destroy()
+                parent_window.destroy() 
+                self.view_events_ui() 
+            except ValueError:
+                messagebox.showerror("Error", "Invalid date format or capacity. Please use YYYY-MM-DD for the date and a number for capacity.", parent=edit_event_window)
+
+        save_button_style = {"font": ("Helvetica", 11, "bold"), "bg": "#2ecc71", "fg": "white", "bd": 0, "relief": "flat", "pady": 10, "activebackground": "#27ae60"}
+        save_button = tk.Button(form_frame, text="Save Changes", command=save_changes, **save_button_style)
+        save_button.grid(row=4, column=0, columnspan=2, pady=(20, 5), sticky="ew")
+
+        form_frame.grid_columnconfigure(1, weight=1)
+
+if __name__ == "__main__":
+    app = EventManagementApp()
+    app.mainloop()
